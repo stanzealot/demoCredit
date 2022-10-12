@@ -8,12 +8,15 @@ interface IKnexConfig {
 const configs: IKnexConfig = {
 
   development: {
-    client: "sqlite3",
+    client: 'mysql',
     connection: {
-      filename: "./dev.sqlite3"
+      host : '127.0.0.1',
+      port : 3306,
+      user : 'root',
+      password : '1234',
+      database : 'demoCredit'
     }
   },
-
   staging: {
     client: "postgresql",
     connection: {
