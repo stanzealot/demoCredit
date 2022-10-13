@@ -1,8 +1,9 @@
 import  {Request,Response} from 'express'
 import db from "../database/db";
 import {v4 as uuid} from 'uuid'
-import {registerSchema,loginSchema,options,updateUserSchema} from '../utils/utils'
+import {registerSchema,loginSchema,options,updateUserSchema,generateToken} from '../utils/utils'
 import bcrypt from 'bcryptjs'
+import { json } from 'stream/consumers';
 class UsersController {
     async createUser(req: Request, res: Response){
         try{
@@ -49,6 +50,51 @@ class UsersController {
        
       
     }
+    async login(req: Request, res: Response){
+        try{ 
+            const validationResult = loginSchema.validate(req.body,options)
+            if( validationResult.error){
+               return res.status(400).json({
+                  Error:validationResult.error.details[0].message
+               })
+            }
+            const user = await db('users').where({email:req.body.email}).first();
+            if(!user) return res.status(404).json({msg:"invalide credential"})
+            const {id} = user
+            const token = generateToken({id})
+            const validUser = await bcrypt.compare(req.body.password, user.password);
+            if(!validUser){
+                res.status(401).json({
+                    message:"Password do not match"
+                })
+            }
+     
+           if(validUser){
+              res.cookie("token",token,{
+                 httpOnly:true,
+                 maxAge:1000 * 60 * 60 * 24
+              });
+              res.cookie("id",id,{
+                 httpOnly:true,
+                 maxAge: 1000 * 60 * 24
+              })
+             
+              
+              res.status(200).json({
+                  message:"Successfully logged in",
+                  token,
+                  user
+
+              })
+           }
+        
+        }catch(err){
+            res.status(500).json({
+                msg:'failed to login',
+                route:'/login'
+            })
+        }
+    }
     async getAllUsers(req: Request, res: Response){
         try{
             const users = await db('users');
@@ -90,7 +136,11 @@ class UsersController {
                   })
                 }
                 
-                const passwordHash = await bcrypt.hash(password,8)
+                let passwordHash;
+                if(password){
+                    passwordHash = await bcrypt.hash(password,8)
+                } 
+                
                 const updatedUser = await db('users').where({id}).update(
                     {
                         id,
@@ -102,15 +152,16 @@ class UsersController {
         
                     }
                 )
-                res.status(200).json(updatedUser)
+                res.status(200).json({id:user.id})
         }catch(err){
+                console.log(err)
                 res.status(500).json({msg:"Unable to Update User"})
         }
        
 
     }
 
-    async delete(req: Request, res: Response){
+    async remove(req: Request, res: Response){
         const {
             id
         } = req.params;
